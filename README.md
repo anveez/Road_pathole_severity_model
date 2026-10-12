@@ -69,3 +69,4 @@ The app will automatically open in your browser at: `http://localhost:8501`
 | **Moderate** | 🟡 Moderate Severity | Noticeable cavity (2.5 - 5 cm depth) | Schedule within 1-2 weeks |
 | **High** | 🟠 High Severity | Deep rupture (>5 cm depth), risk of rim damage | Urgent repair within 48 hours |
 | **Critical** | 🔴 Critical Hazard | Extreme crater on arterial/highway, blowout danger | Emergency dispatch (12-24 hours) |
+Deployement link : `https://roadpatholeseveritymodel-lnjsmm4z8w7rlm7b83du8f.streamlit.app/`

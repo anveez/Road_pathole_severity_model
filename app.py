@@ -4,6 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import joblib
 import os
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score
 
 # ==========================================
 # PAGE CONFIGURATION
@@ -189,14 +192,81 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# LOAD TRAINED MODEL
+# LOAD TRAINED MODEL (WITH CLOUD AUTO-FALLBACK)
 # ==========================================
 @st.cache_resource
 def load_bundle():
     model_path = os.path.join(os.path.dirname(__file__), "pothole_model_bundle.pkl")
-    if not os.path.exists(model_path):
-        return None
-    return joblib.load(model_path)
+    if os.path.exists(model_path):
+        try:
+            return joblib.load(model_path)
+        except Exception:
+            pass  # Fallback to in-memory training for cross-platform/cloud compatibility
+            
+    # Seamless cloud self-training fallback (takes < 1 sec, runs once and cached)
+    csv_path = os.path.join(os.path.dirname(__file__), "potholes.csv")
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path)
+        road_type_mapping = {
+            "Residential Road": 0,
+            "Collector Street": 1,
+            "Urban Arterial": 2,
+            "Highway / Expressway": 3
+        }
+        water_mapping = {
+            "Dry": 0,
+            "Damp": 1,
+            "Standing Water / Flooded": 2
+        }
+        severity_order = ["Low", "Moderate", "High", "Critical"]
+        severity_mapping = {label: idx for idx, label in enumerate(severity_order)}
+        reverse_severity_mapping = {idx: label for label, idx in severity_mapping.items()}
+
+        df_clean = df.copy()
+        df_clean["road_type_encoded"] = df_clean["road_type"].map(road_type_mapping)
+        df_clean["water_presence_encoded"] = df_clean["water_presence"].map(water_mapping)
+        df_clean["severity_encoded"] = df_clean["severity_level"].map(severity_mapping)
+
+        feature_cols = [
+            "pothole_depth_cm",
+            "pothole_diameter_cm",
+            "surface_area_sq_cm",
+            "road_type_encoded",
+            "traffic_speed_kmh",
+            "traffic_volume_daily",
+            "water_presence_encoded",
+            "vibration_peak_g"
+        ]
+
+        X = df_clean[feature_cols]
+        y = df_clean["severity_encoded"]
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.20, random_state=42, stratify=y
+        )
+
+        rf_model = RandomForestClassifier(n_estimators=150, max_depth=12, random_state=42)
+        rf_model.fit(X_train, y_train)
+
+        rf_preds = rf_model.predict(X_test)
+        rf_acc = accuracy_score(y_test, rf_preds)
+        rf_f1 = f1_score(y_test, rf_preds, average="weighted")
+
+        return {
+            "model": rf_model,
+            "model_name": "Random Forest",
+            "feature_cols": feature_cols,
+            "road_type_mapping": road_type_mapping,
+            "water_mapping": water_mapping,
+            "severity_order": severity_order,
+            "severity_mapping": severity_mapping,
+            "reverse_severity_mapping": reverse_severity_mapping,
+            "metrics": {
+                "accuracy": float(rf_acc),
+                "f1_score": float(rf_f1)
+            }
+        }
+    return None
 
 bundle = load_bundle()
 
